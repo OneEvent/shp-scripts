@@ -1,0 +1,5 @@
+suites:
+  - key: query-firmware
+    plan_id: 1300
+    suite_id: 1301
+    script_field_name: Custom.PwbScriptKey

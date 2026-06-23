@@ -1,0 +1,191 @@
+name: Commission fresh device
+description: Provision UART device identity, BLE commissioning identity, and server Wi-Fi security for a newly programmed device.
+stop_on_fail: true
+steps:
+  # Optional factory programming step. Enable once the production firmware path is finalized.
+  # - name: Program firmware
+  #   kind: programming
+  #   call: linkserver-flash
+  #   args:
+  #     firmware_dir: "C:\\ProtocolWorkbench\\Firmware"
+  #     file: factory.hex
+  #     device_name: auto
+  #   expect:
+  #     status: "0"
+
+  - name: Get UART device status
+    kind: rpc
+    call: "shp-ap-uart: Get Status"
+    purpose: Verify the device provisioning path is reachable over UART.
+    expect:
+      status: "0"
+
+  - name: Generate UART device CSR
+    kind: rpc
+    call: "shp-ap-uart: Generate CSR"
+    purpose: Ask the device to generate its persistent UART/device identity CSR.
+    save_as:
+      deviceId: uart_device_id
+      csrDerB64: uart_device_csr_b64
+    expect:
+      status: "0"
+
+  - name: Sign UART device CSR
+    kind: api
+    call: sign-csr
+    purpose: Call the provisioning API to sign the UART/device identity CSR.
+    args:
+      target: device
+      device_id: ${uart_device_id}
+      csr_b64: ${uart_device_csr_b64}
+    save_as:
+      certificateB64: uart_device_cert_b64
+    expect:
+      status: "0"
+      outcome: "Issued"
+
+  - name: Install UART device certificate
+    kind: rpc
+    call: "shp-ap-uart: Install Certificate"
+    purpose: Install the signed UART/device identity certificate on the device.
+    args:
+      deviceCertB64: ${uart_device_cert_b64}
+    expect:
+      status: "0"
+
+  - name: Fetch UART trust policy
+    kind: api
+    call: fetch-trust-policy
+    purpose: Load the device trust policy bundle from the provisioning server.
+    save_as:
+      trustPolicyB64: uart_trust_policy_b64
+    expect:
+      status: "0"
+
+  - name: Install UART trust policy
+    kind: rpc
+    call: "shp-ap-uart: Install Trust Policy"
+    purpose: Program the signed UART trust policy onto the device.
+    args:
+      trustPolicyB64: ${uart_trust_policy_b64}
+    expect:
+      status: "0"
+
+  - name: Get BLE commissioning status
+    kind: rpc
+    call: "phone-ble: Get Status"
+    purpose: Verify the BLE commissioning identity path is reachable.
+    expect:
+      status: "0"
+
+  - name: Generate BLE commissioning CSR
+    kind: rpc
+    call: "phone-ble: Generate CSR"
+    purpose: Ask the device to generate its commissioning identity CSR.
+    save_as:
+      deviceId: commissioning_device_id
+      csrDerB64: commissioning_csr_b64
+    expect:
+      status: "0"
+
+  - name: Sign BLE commissioning CSR
+    kind: api
+    call: sign-csr
+    purpose: Call the provisioning API to sign the commissioning identity CSR.
+    args:
+      target: commissioning
+      device_id: ${commissioning_device_id}
+      csr_b64: ${commissioning_csr_b64}
+    save_as:
+      certificateB64: commissioning_cert_b64
+    expect:
+      status: "0"
+      outcome: "Issued"
+
+  - name: Install BLE commissioning certificate
+    kind: rpc
+    call: "phone-ble: Install Certificate"
+    purpose: Install the signed commissioning identity certificate.
+    args:
+      deviceCertB64: ${commissioning_cert_b64}
+    expect:
+      status: "0"
+
+  - name: Generate commissioning setup payload
+    kind: api
+    call: generate-commissioning-setup
+    purpose: Ask the provisioning API to generate the onboarding setup payload and setup code.
+    args:
+      device_id: ${commissioning_device_id}
+    save_as:
+      setupCode: commissioning_setup_code
+      qrPayload: commissioning_qr_payload
+    expect:
+      status: "0"
+
+  - name: Install commissioning setup code
+    kind: rpc
+    call: "phone-ble: Install Setup Code"
+    purpose: Store the BLE/Wi-Fi onboarding setup code on the device.
+    args:
+      setupCode: ${commissioning_setup_code}
+    expect:
+      status: "0"
+
+  - name: Get server Wi-Fi status
+    kind: rpc
+    call: "shp-server-wifi: Get Status"
+    purpose: Verify the server Wi-Fi client identity path is reachable.
+    expect:
+      status: "0"
+
+  - name: Generate server Wi-Fi CSR
+    kind: rpc
+    call: "shp-server-wifi: Generate CSR"
+    purpose: Ask the device to generate its server Wi-Fi CSR.
+    save_as:
+      deviceId: server_wifi_device_id
+      csrDerB64: server_wifi_csr_b64
+    expect:
+      status: "0"
+
+  - name: Sign server Wi-Fi CSR
+    kind: api
+    call: sign-csr
+    purpose: Call the provisioning API to sign the server Wi-Fi CSR.
+    args:
+      target: server-wifi
+      device_id: ${server_wifi_device_id}
+      csr_b64: ${server_wifi_csr_b64}
+    save_as:
+      certificateB64: server_wifi_cert_b64
+    expect:
+      status: "0"
+      outcome: "Issued"
+
+  - name: Install server Wi-Fi certificate
+    kind: rpc
+    call: "shp-server-wifi: Install Certificate"
+    purpose: Install the signed server Wi-Fi client certificate.
+    args:
+      deviceCertB64: ${server_wifi_cert_b64}
+    expect:
+      status: "0"
+
+  - name: Load default backend trust chain
+    kind: local
+    call: load-default-trust-chain
+    purpose: Load the default backend HTTPS trust chain bundled with ProtocolWorkbench.
+    save_as:
+      trustChainB64: server_wifi_trust_chain_b64
+    expect:
+      status: "0"
+
+  - name: Install server Wi-Fi trust chain
+    kind: rpc
+    call: "shp-server-wifi: Install Trust Chain"
+    purpose: Install the CA trust chain used to validate the backend HTTPS server certificate.
+    args:
+      trustChainB64: ${server_wifi_trust_chain_b64}
+    expect:
+      status: "0"

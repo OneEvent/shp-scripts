@@ -1,0 +1,33 @@
+key: get-firmware-version
+name: Get firmware version
+description: Read the firmware version parameter using the OpenRPC Get Parameter method.
+stop_on_fail: true
+azure_devops:
+  plan_id: 1300
+  suite_id: 1301
+  test_case_id: 1302
+steps:
+  # Optional factory programming step. Enable once the test fixture firmware path is finalized.
+  # - name: Program firmware
+  #   kind: programming
+  #   call: linkserver-flash
+  #   args:
+  #     firmware_path: "C:\\ProtocolWorkbench\\Firmware\\factory.hex"
+  #     device_name: auto
+  #   expect:
+  #     status: "0"
+
+  - name: Read firmware version
+    call: Get Parameter
+    args:
+      parameter-id: 1
+    save_as: firmware_version
+    expect:
+      status: "0"
+  - name: Query firmware version (intentional fail)
+    call: Get Parameter
+    args:
+      parameter-id: 1
+    purpose: Demonstrate a failing row in the suite table.
+    expect:
+      status: "6"
